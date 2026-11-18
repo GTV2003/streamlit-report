@@ -156,7 +156,7 @@ class QuizStore:
     def public_url(self, browser_url: str | None = None) -> str:
         with self._transaction(False) as db:
             configured = db.execute("SELECT value FROM settings WHERE key='public_url'").fetchone()[0]
-        return configured or normalize_public_url(os.environ.get("PUBLIC_APP_URL") or browser_url or "http://localhost:8504")
+        return configured or normalize_public_url(os.environ.get("PUBLIC_APP_URL") or browser_url or "http://localhost:8501")
 
     def set_public_url(self, key: str, value: str) -> None:
         self._require_host(key)

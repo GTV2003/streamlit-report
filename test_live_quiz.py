@@ -127,10 +127,10 @@ class StoreScenarios(unittest.TestCase):
             with self.assertRaises(QuizError):
                 normalize_public_url(value)
         with patch.dict(os.environ, {"PUBLIC_APP_URL": ""}):
-            self.assertEqual(self.store.join_url("http://localhost:8504/?presenter=1&ticket=private"), "http://localhost:8504/?join=1")
+            self.assertEqual(self.store.join_url("http://localhost:8501/?presenter=1&ticket=private"), "http://localhost:8501/?join=1")
             self.assertEqual(self.store.join_url("https://example.ru/talk/?slide=12"), "https://example.ru/talk/?join=1")
         with patch.dict(os.environ, {"PUBLIC_APP_URL": "https://report.example.ru"}):
-            self.assertEqual(self.store.join_url("http://localhost:8504/"), "https://report.example.ru/?join=1")
+            self.assertEqual(self.store.join_url("http://localhost:8501/"), "https://report.example.ru/?join=1")
         self.store.set_public_url(self.key, "https://example.ru/talk/?slide=4#quiz")
         self.assertEqual(self.store.join_url(), "https://example.ru/talk/?join=1")
         cloud = cloud_html([{"name": "<img src=x>"}])

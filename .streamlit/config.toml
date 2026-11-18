@@ -20,7 +20,6 @@ toolbarMode = "viewer"
 
 [server]
 headless = true
-port = 8504
 
 [browser]
 gatherUsageStats = false
