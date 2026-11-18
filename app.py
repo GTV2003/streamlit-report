@@ -635,8 +635,6 @@ with st.sidebar:
     st.write("")
     st.toggle("Показывать код", value=True, key="show_code")
     st.toggle("Заметки докладчика", value=False, key="show_notes")
-    planned = sum(s[3] for s in SLIDES[: idx + 1])
-    st.caption(f"По плану к концу слайда: {planned:.1f} из 10 мин")
 
 section, name, fn, minutes, note = SLIDES[idx]
 html(f'<div class="topbar"><span>Web-приложения на базе Streamlit</span>'
