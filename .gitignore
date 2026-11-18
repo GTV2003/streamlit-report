@@ -1,0 +1,4 @@
+.claude/
+ГАЙД.md
+__pycache__/
+.streamlit/secrets.toml
