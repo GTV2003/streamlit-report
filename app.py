@@ -20,33 +20,36 @@ import streamlit as st
 
 st.set_page_config(page_title="Streamlit · доклад", layout="wide")
 
-ACCENT = "#FF5A4E"
+ACCENT = "#E5483D"   # красный: читается и на светлом, и на тёмном фоне
+GREEN = "#16A34A"
+SURFACE = "rgba(128,128,128,.08)"   # фон карточек для обеих тем
+LINE = "rgba(128,128,128,.25)"
 
 # ============================================================ стили
 st.markdown(
     f"""
     <style>
+    /* кнопки Community Cloud (Share, звезда, редактирование, GitHub) и кнопка Deploy */
+    [data-testid="stToolbarActions"], [data-testid="stAppDeployButton"] {{display:none !important;}}
     .block-container {{padding-top: 1.6rem; max-width: 1280px;}}
     .topbar {{display:flex; justify-content:space-between; align-items:center;
-              font-size:.8rem; letter-spacing:.08em; opacity:.65; text-transform:uppercase;
-              border-bottom:1px solid rgba(255,255,255,.08); padding-bottom:.6rem; margin-bottom:1.2rem;}}
-    .live {{color:#4ADE80;}}
-    .kicker {{color:{ACCENT}; font-size:.85rem; font-weight:700; letter-spacing:.12em;
+              font-size:.85rem; letter-spacing:.08em; opacity:.75; text-transform:uppercase;
+              border-bottom:1px solid {LINE}; padding-bottom:.6rem; margin-bottom:1.2rem;}}
+    .live {{color:{GREEN};}}
+    .kicker {{color:{ACCENT}; font-size:.9rem; font-weight:700; letter-spacing:.12em;
               text-transform:uppercase; margin-bottom:.3rem;}}
-    .h1 {{font-size:3.4rem; font-weight:800; line-height:1.05; margin:.2rem 0 1rem;}}
+    .h1 {{font-size:3rem; font-weight:800; line-height:1.05; margin:.2rem 0 1rem;}}
     .h1 span {{color:{ACCENT};}}
     .h2 {{font-size:2.2rem; font-weight:800; line-height:1.15; margin:.1rem 0 .5rem;}}
-    .lead {{font-size:1.15rem; opacity:.8; margin-bottom:1.2rem; line-height:1.5;}}
-    .tag {{display:inline-block; border:1px solid rgba(255,255,255,.18); border-radius:6px;
-           padding:.15rem .6rem; margin-right:.4rem; font-size:.75rem; letter-spacing:.08em;}}
-    .card {{background:#1D2028; border:1px solid rgba(255,255,255,.07); border-radius:12px;
+    .lead {{font-size:1.2rem; opacity:.85; margin-bottom:1.2rem; line-height:1.5;}}
+    .card {{background:{SURFACE}; border:1px solid {LINE}; border-radius:12px;
             padding:1rem 1.1rem; height:100%;}}
-    .card .num {{color:{ACCENT}; font-weight:800; font-size:.85rem;}}
-    .card h4 {{margin:.25rem 0 .35rem; font-size:1.05rem;}}
-    .card p {{margin:0; opacity:.75; font-size:.95rem; line-height:1.45;}}
-    .panel-label {{font-size:.75rem; letter-spacing:.1em; text-transform:uppercase; opacity:.6;
-                   display:flex; justify-content:space-between; margin-bottom:.4rem;}}
-    .hint {{border-left:3px solid {ACCENT}; padding:.4rem .8rem; opacity:.8; font-size:.92rem;
+    .card .num {{color:{ACCENT}; font-weight:800; font-size:.9rem;}}
+    .card h4 {{margin:.25rem 0 .35rem; font-size:1.1rem; padding:0;}}
+    .card p {{margin:0; opacity:.85; font-size:1rem; line-height:1.45;}}
+    .panel-label {{font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; opacity:.75;
+                   display:flex; justify-content:space-between; margin-bottom:.4rem; font-weight:600;}}
+    .hint {{border-left:3px solid {ACCENT}; padding:.4rem .8rem; opacity:.9; font-size:1rem;
             margin-top:.8rem;}}
     .flow {{display:flex; gap:.6rem; align-items:stretch; flex-wrap:wrap; margin:.6rem 0 1rem;}}
     .flow .step {{flex:1; min-width:150px;}}
@@ -55,27 +58,30 @@ st.markdown(
     .grid.g4 {{grid-template-columns:repeat(4, 1fr);}}
     .grid.g2 {{grid-template-columns:repeat(2, 1fr);}}
     @media (max-width: 900px) {{ .grid.g4, .grid.g2 {{grid-template-columns:1fr;}} }}
-    .grid .card h4 {{font-size:1rem;}}
-    .grid .card p {{font-size:.9rem;}}
-    .pc {{background:#1D2028; border:1px solid rgba(255,255,255,.07); border-radius:12px;
-          padding:1rem 1.2rem;}}
-    .pc h3 {{margin:0 0 .6rem; font-size:1.2rem;}}
+    .grid .card h4 {{font-size:1.05rem;}}
+    .grid .card p {{font-size:.95rem;}}
+    .pc {{background:{SURFACE}; border:1px solid {LINE}; border-radius:12px; padding:1rem 1.2rem;}}
+    .pc h3 {{margin:0 0 .6rem; font-size:1.25rem; padding:0;}}
     .pc ul {{list-style:none; padding:0; margin:0;}}
-    .pc li {{display:flex; gap:.7rem; padding:.45rem 0; border-top:1px solid rgba(255,255,255,.06);
-             line-height:1.4;}}
+    .pc li {{display:flex; gap:.7rem; padding:.45rem 0; border-top:1px solid {LINE}; line-height:1.4;
+             margin:0;}}
     .pc li:first-child {{border-top:none;}}
     .pc .mk {{flex:0 0 1.4rem; height:1.4rem; border-radius:6px; display:flex; align-items:center;
               justify-content:center; font-weight:800;}}
-    .pc.plus .mk {{background:rgba(74,222,128,.15); color:#4ADE80;}}
-    .pc.minus .mk {{background:rgba(255,90,78,.15); color:{ACCENT};}}
-    .pc li span.t {{opacity:.9;}}
+    .pc.plus .mk {{background:rgba(22,163,74,.15); color:{GREEN};}}
+    .pc.minus .mk {{background:rgba(229,72,61,.15); color:{ACCENT};}}
     .pc li b {{display:block;}}
-    .pc li small {{opacity:.65; font-size:.88rem;}}
-    .authors {{margin-top:1.4rem;}}
-    .authors .names {{display:grid; grid-template-columns:repeat(2, max-content); gap:.25rem 2rem;
-                      font-size:1rem;}}
-    .qr {{background:#fff; border-radius:12px; padding:10px; width:max-content; margin:0 auto;}}
-    .qr svg {{display:block; width:200px; height:200px;}}
+    .pc li small {{opacity:.8; font-size:.95rem;}}
+    .authors {{margin-top:1.6rem;}}
+    .authors .names {{display:grid; grid-template-columns:repeat(2, max-content); gap:.35rem 2.2rem;
+                      font-size:1.45rem; font-weight:600; line-height:1.3;}}
+    .qr {{background:#fff; border-radius:12px; padding:10px; width:max-content; margin:0 auto;
+          border:1px solid {LINE};}}
+    .qr svg {{display:block; width:220px; height:220px;}}
+    .theme-links {{display:flex; gap:.5rem;}}
+    .theme-links a {{flex:1; text-align:center; padding:.35rem .5rem; border:1px solid {LINE};
+                     border-radius:8px; text-decoration:none; color:inherit; font-size:.9rem;}}
+    .theme-links a:hover {{border-color:{ACCENT};}}
     </style>
     """,
     unsafe_allow_html=True,
@@ -142,14 +148,12 @@ def rub(x: float) -> str:
 
 # ============================================================ СЛАЙДЫ
 def s_intro():
-    c1, c2 = st.columns([1.1, 1], gap="large")
+    c1, c2 = st.columns([1.3, 1], gap="large")
     with c1:
         html('<div class="kicker">Python → Web / интерактивный доклад</div>')
         html('<div class="h1">Web-приложения<br>на базе<br><span>Streamlit</span></div>')
         html('<div class="lead">Как превратить Python-скрипт в интерактивный сервис.</div>')
-        html('<span class="tag">PYTHON</span><span class="tag">ДАННЫЕ</span><span class="tag">ИНТЕРФЕЙСЫ</span>')
-        hint("Эта презентация — уже Streamlit-приложение. Попробуйте изменить период справа.")
-        html('<div class="authors"><div class="panel-label"><span>Авторы</span></div><div class="names">'
+        html('<div class="authors"><div class="panel-label"><span>Студенты</span></div><div class="names">'
              + "".join(f"<span>{n}</span>" for n in AUTHORS) + "</div></div>")
     with c2:
         with st.container(border=True):
@@ -473,8 +477,11 @@ def board() -> dict:
     return {"lock": threading.Lock(), "results": {}}
 
 
-def quiz_link() -> str:
-    """Адрес квиза: адрес этого приложения в браузере + ?quiz=1."""
+def app_url(params: str) -> str:
+    """Адрес этого приложения в браузере с нужными параметрами.
+
+    embed=true убирает служебные надписи и кнопки Streamlit Community Cloud.
+    """
     try:
         base = (st.context.url or "").split("?")[0]
     except Exception:
@@ -482,7 +489,11 @@ def quiz_link() -> str:
     if not base:
         host = st.context.headers.get("Host", "localhost:8501")
         base = f"http://{host}/"
-    return base.rstrip("/") + "/?quiz=1"
+    return base.rstrip("/") + "/?embed=true&" + params
+
+
+def quiz_link() -> str:
+    return app_url("quiz=1")
 
 
 @st.cache_data(show_spinner=False)
@@ -610,7 +621,7 @@ idx = st.session_state.slide
 
 with st.sidebar:
     html(f'<div style="font-size:1.5rem;font-weight:800">streamlit</div>'
-         f'<div style="opacity:.6;font-size:.85rem;margin-bottom:1rem">доклад в действии</div>')
+         f'<div style="opacity:.75;font-size:.95rem;margin-bottom:1rem">доклад в действии</div>')
     html('<div class="panel-label"><span>Содержание</span></div>')
     sections = list(dict.fromkeys(s[0] for s in SLIDES))
     for n, sec in enumerate(sections, 1):
@@ -618,6 +629,10 @@ with st.sidebar:
         st.button(f"{n:02d}  {sec}", key=f"sec{n}", on_click=go, args=(first,), width="stretch",
                   type="primary" if SLIDES[idx][0] == sec else "tertiary")
     st.divider()
+    html('<div class="panel-label"><span>Тема</span></div><div class="theme-links">'
+         f'<a href="{app_url(f"embed_options=light_theme&slide={idx + 1}")}" target="_top">Светлая</a>'
+         f'<a href="{app_url(f"embed_options=dark_theme&slide={idx + 1}")}" target="_top">Тёмная</a></div>')
+    st.write("")
     st.toggle("Показывать код", value=True, key="show_code")
     st.toggle("Заметки докладчика", value=False, key="show_notes")
     planned = sum(s[3] for s in SLIDES[: idx + 1])

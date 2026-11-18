@@ -1,9 +1,22 @@
 [theme]
-base = "dark"
-primaryColor = "#FF5A4E"
+# Крупнее шрифт для проектора (по умолчанию 16)
+baseFontSize = 18
+
+[theme.light]
+primaryColor = "#E5483D"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F3F5"
+textColor = "#16181D"
+
+[theme.dark]
+primaryColor = "#E5483D"
 backgroundColor = "#14161B"
 secondaryBackgroundColor = "#1D2028"
 textColor = "#E8EAF0"
+
+[client]
+# скрыть кнопки разработчика (Rerun, Deploy и т. п.) для зрителей
+toolbarMode = "viewer"
 
 [server]
 headless = true
