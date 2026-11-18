@@ -1,22 +1,17 @@
 """
-Интерактивный доклад «Web-приложения на базе Streamlit»: 11 слайдов (~10 минут) и квиз.
-
-Запуск (из папки report):
-    pip install -r requirements.txt
-    streamlit run app.py
-
-Режимы:
-    http://localhost:8501/            — презентация (для докладчика)
-    http://localhost:8501/?quiz=1     — только квиз (ссылка для слушателей)
+Интерактивный доклад «Web-приложения на базе Streamlit» и общий квиз.
+Запуск из этой папки: python -m streamlit run app.py
 """
 
-import threading
 import time
-from datetime import datetime
+from html import escape
+from urllib.parse import urlencode
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+from quiz_ui import audience_page, ensure_participant, get_store, is_presenter, presenter_login, quiz_stage, watch_round
 
 st.set_page_config(page_title="Streamlit · доклад", layout="wide")
 
@@ -75,9 +70,21 @@ st.markdown(
     .authors {{margin-top:1.6rem;}}
     .authors .names {{display:grid; grid-template-columns:repeat(2, max-content); gap:.35rem 2.2rem;
                       font-size:1.45rem; font-weight:600; line-height:1.3;}}
-    .qr {{background:#fff; border-radius:12px; padding:10px; width:max-content; margin:0 auto;
-          border:1px solid {LINE};}}
-    .qr svg {{display:block; width:220px; height:220px;}}
+    .quiz-stage h1 {{font-size:clamp(2.8rem,6vw,5rem); line-height:1.05; margin:.35rem 0 .6rem;
+                    padding:0; letter-spacing:-.035em;}}
+    .quiz-stage h1 span {{color:{ACCENT};}}
+    .finish-cloud {{display:flex; flex-wrap:wrap; align-content:center; justify-content:center;
+                   align-items:center; gap:.7rem 1.1rem; min-height:235px; padding:1.2rem;
+                   border:1px solid {LINE}; border-radius:12px; background:{SURFACE}; text-align:center;}}
+    .cloud-name {{max-width:100%; overflow-wrap:anywhere; font-weight:650; line-height:1.25;}}
+    .empty-cloud p {{margin:.35rem 0 0; opacity:.75;}}
+    .st-key-quiz_options [role="radiogroup"] {{gap:.5rem;}}
+    .st-key-quiz_options [data-testid="stRadio"] label {{padding:.65rem 1rem; width:100%;
+                       border:1px solid {LINE}; border-radius:8px;}}
+    .st-key-quiz_options [data-testid="stRadio"] label:has(input:checked) {{border-color:{ACCENT};}}
+    @media (max-width: 700px) {{
+        .authors .names {{grid-template-columns:1fr; font-size:1.15rem;}}
+    }}
     .theme-links {{display:flex; gap:.5rem;}}
     .theme-links a {{flex:1; text-align:center; padding:.35rem .5rem; border:1px solid {LINE};
                      border-radius:8px; text-decoration:none; color:inherit; font-size:.9rem;}}
@@ -115,7 +122,7 @@ def hint(text: str) -> None:
     html(f'<div class="hint">{text}</div>')
 
 
-AUTHORS = ["Габараев Владимир", "Глухарев Тихон", "Овсяник Геннадий", "Смирнов Александр", "Кобелев Иван"]
+AUTHORS = ["Габараев Владимир", "Глухарев Тихон", "Овсяник Геннадий", "Головачев Егор", "Кобелев Иван"]
 
 # ============================================================ данные
 REGIONS =["Москва", "Казань", "Волгоград", "Новосибирск"]
@@ -444,131 +451,6 @@ def s_summary():
     st.button("Перейти к квизу · 5 вопросов", type="primary", on_click=go, args=(len(SLIDES) - 1,))
 
 
-# ============================================================ КВИЗ
-QUESTIONS = [
-    ("Что происходит, когда пользователь меняет значение виджета?",
-     ["Обновляется только этот виджет",
-      "Скрипт выполняется заново сверху вниз",
-      "Страница полностью перезагружается в браузере",
-      "Ничего, пока не нажата кнопка «Сохранить»"],
-     1, "Streamlit перезапускает весь app.py и обновляет изменившиеся элементы."),
-    ("Для чего нужен st.session_state?",
-     ["Для хранения значений между перезапусками скрипта в рамках сессии",
-      "Для постоянного хранения данных в базе",
-      "Для ускорения тяжёлых вычислений",
-      "Для настройки темы оформления"],
-     0, "Session State живёт, пока открыта сессия. Это не постоянное хранилище."),
-    ("Какой декоратор подходит для кеширования загрузки DataFrame?",
-     ["@st.cache_resource", "@st.session_state", "@st.cache_data", "@st.fragment"],
-     2, "cache_data — для данных, cache_resource — для моделей и подключений."),
-    ("Какой командой запускается приложение?",
-     ["python app.py", "streamlit run app.py", "pip install app.py", "streamlit start"],
-     1, "streamlit run поднимает сервер и открывает приложение в браузере."),
-    ("Где правильно хранить пароли и API-ключи?",
-     ["Прямо в app.py", "В README репозитория",
-      "В secrets.toml или переменных окружения", "В st.session_state"],
-     2, "Секреты держат отдельно от кода и не загружают в репозиторий."),
-]
-
-
-@st.cache_resource
-def board() -> dict:
-    """Общая таблица результатов для всех участников (живёт, пока работает сервер)."""
-    return {"lock": threading.Lock(), "results": {}}
-
-
-def app_url(params: str) -> str:
-    """Адрес этого приложения в браузере с нужными параметрами.
-
-    embed=true убирает служебные надписи и кнопки Streamlit Community Cloud.
-    """
-    try:
-        base = (st.context.url or "").split("?")[0]
-    except Exception:
-        base = ""
-    if not base:
-        host = st.context.headers.get("Host", "localhost:8501")
-        base = f"http://{host}/"
-    return base.rstrip("/") + "/?embed=true&" + params
-
-
-def quiz_link() -> str:
-    return app_url("quiz=1")
-
-
-@st.cache_data(show_spinner=False)
-def qr_svg(link: str) -> str:
-    import segno
-    return segno.make(link, error="m").svg_inline(scale=6, border=1, dark="#14161B", light="#FFFFFF")
-
-
-def s_quiz(standalone: bool = False):
-    title("Квиз", "Проверим себя: 5 вопросов")
-    c1, c2 = st.columns([1.5, 1], gap="large")
-    with c1:
-        done = st.session_state.get("quiz_result")
-        if done is None:
-            with st.form("quiz"):
-                name = st.text_input("Ваше имя", max_chars=40)
-                answers = []
-                for i, (q, opts, _, _) in enumerate(QUESTIONS, 1):
-                    answers.append(st.radio(f"**{i}. {q}**", opts, index=None, key=f"q{i}"))
-                sent = st.form_submit_button("Отправить ответы", type="primary")
-            if sent:
-                if not name.strip():
-                    st.error("Введите имя.")
-                elif any(a is None for a in answers):
-                    st.error("Ответьте на все вопросы.")
-                else:
-                    score = sum(a == q[1][q[2]] for a, q in zip(answers, QUESTIONS))
-                    b = board()
-                    with b["lock"]:
-                        b["results"][name.strip()] = (score, datetime.now())
-                    st.session_state.quiz_result = (name.strip(), answers, score)
-                    st.rerun()
-        else:
-            name, answers, score = done
-            st.subheader(f"{name}, ваш результат: {score} из {len(QUESTIONS)}")
-            for i, ((q, opts, right, why), a) in enumerate(zip(QUESTIONS, answers), 1):
-                ok = a == opts[right]
-                (st.success if ok else st.error)(
-                    f"**{i}. {q}**  \nВаш ответ: {a}" + ("" if ok else f"  \nПравильно: {opts[right]}")
-                    + f"  \n_{why}_")
-            if st.button("Пройти ещё раз"):
-                del st.session_state["quiz_result"]
-                st.rerun()
-    with c2:
-        if not standalone:
-            link = quiz_link()
-            with st.container(border=True):
-                html('<div class="panel-label"><span>Сканируйте, чтобы ответить</span></div>'
-                     f'<div class="qr">{qr_svg(link)}</div>'
-                     f'<div style="text-align:center;margin-top:.6rem;font-size:.85rem;opacity:.7">'
-                     f'<a href="{link}" target="_blank" style="color:inherit">{link}</a></div>')
-            st.write("")
-        live_label("Таблица результатов")
-        leaderboard()
-
-
-@st.fragment(run_every=3)
-def leaderboard():
-    b = board()
-    with b["lock"]:
-        res = dict(b["results"])
-    if not res:
-        st.caption("Пока никто не ответил.")
-        return
-    table = (pd.DataFrame([(n, s, t) for n, (s, t) in res.items()], columns=["Участник", "Баллы", "t"])
-             .sort_values(["Баллы", "t"], ascending=[False, True]).drop(columns="t"))
-    table.insert(0, "Место", range(1, len(table) + 1))
-    st.dataframe(table, hide_index=True, width="stretch")
-    st.caption(f"Участников: {len(table)} · средний балл {table['Баллы'].mean():.1f}")
-    if not st.session_state.get("quiz_standalone") and st.button("Очистить таблицу", key="lb_clear"):
-        with b["lock"]:
-            b["results"].clear()
-        st.rerun()
-
-
 # ============================================================ НАВИГАЦИЯ
 # (раздел, название, функция, минуты, заметка докладчика)
 SLIDES = [
@@ -594,63 +476,97 @@ SLIDES = [
      "Главное демо. Уберите регион, смените период, откройте исходные данные."),
     ("Итоги", "Плюсы и недостатки", s_summary, 0.75,
      "Слева плюсы, справа недостатки, внизу вывод. Затем переход к квизу."),
-    ("Квиз", "Квиз · 5 вопросов", s_quiz, 0.0,
-     "Попросите отсканировать QR-код, дайте 2–3 минуты, затем обсудите таблицу."),
+    ("Квиз", "Квиз · 5 вопросов", quiz_stage, 0.0,
+     "Дайте аудитории время отсканировать QR. Нажмите «Старт», а после пяти вопросов обсудите распределение баллов."),
 ]
 
 
 def go(i: int) -> None:
-    st.session_state.slide = max(0, min(len(SLIDES) - 1, i))
-    st.query_params["slide"] = str(st.session_state.slide + 1)
+    st.query_params["slide"] = str(max(0, min(len(SLIDES) - 1, i)) + 1)
 
 
-# ---- режим «только квиз» для слушателей
-if st.query_params.get("quiz") == "1":
-    st.session_state.quiz_standalone = True
-    html("<style>[data-testid='stSidebar'],[data-testid='stSidebarCollapsedControl']{display:none}</style>")
-    s_quiz(standalone=True)
-    st.stop()
+def theme_url(theme: str, index: int) -> str:
+    # Смена темы перезагружает страницу. Личный билет и номер слайда остаются в адресе.
+    params = {key: st.query_params[key] for key in ("ticket", "presenter") if key in st.query_params}
+    params.update(embed="true", embed_options=theme, slide=str(index + 1))
+    return "?" + escape(urlencode(params), quote=True)
 
-if "slide" not in st.session_state:
+
+def enter_presenter(index: int) -> None:
+    go(index)
+    st.query_params["presenter"] = "1"
+
+
+def leave_presenter() -> None:
+    st.session_state.pop("host_key", None)
+    st.query_params.pop("presenter", None)
+
+
+def main() -> None:
+    store = get_store()
+    host = is_presenter(store)
+    if st.query_params.get("presenter") == "1" and not host:
+        presenter_login(store)
+        return
+
+    room = store.current_round()
+    token = None if host else ensure_participant(store, room)
+    watch_round(store, room["id"], room["status"], token)
+    joining = st.query_params.get("join") == "1" or st.query_params.get("quiz") == "1"
+    if not host and (room["status"] != "waiting" or joining):
+        audience_page(store, room, token)
+        return
+
     try:
-        st.session_state.slide = max(0, min(len(SLIDES) - 1, int(st.query_params.get("slide", 1)) - 1))
+        requested = int(st.query_params.get("slide", len(SLIDES) if host else 1))
     except ValueError:
-        st.session_state.slide = 0
+        requested = 1
+    idx = max(0, min(len(SLIDES) - 1, requested - 1))
 
-idx = st.session_state.slide
+    with st.sidebar:
+        html(f'<div style="font-size:1.5rem;font-weight:800">streamlit</div>'
+             f'<div style="opacity:.75;font-size:.95rem;margin-bottom:1rem">доклад в действии</div>')
+        html('<div class="panel-label"><span>Содержание</span></div>')
+        sections = list(dict.fromkeys(s[0] for s in SLIDES))
+        for n, sec in enumerate(sections, 1):
+            first = next(i for i, s in enumerate(SLIDES) if s[0] == sec)
+            st.button(f"{n:02d}  {sec}", key=f"sec{n}", on_click=go, args=(first,), width="stretch",
+                      type="primary" if SLIDES[idx][0] == sec else "tertiary")
+        st.divider()
+        html('<div class="panel-label"><span>Тема</span></div><div class="theme-links">'
+             f'<a href="{theme_url("light_theme", idx)}" target="_top">Светлая</a>'
+             f'<a href="{theme_url("dark_theme", idx)}" target="_top">Тёмная</a></div>')
+        st.write("")
+        st.toggle("Показывать код", value=True, key="show_code")
+        st.toggle("Заметки докладчика", value=False, key="show_notes")
+        st.divider()
+        if host:
+            st.button("Выйти из режима ведущего", on_click=leave_presenter, type="tertiary")
+        else:
+            st.button("Вход ведущего", on_click=enter_presenter, args=(idx,), type="tertiary")
 
-with st.sidebar:
-    html(f'<div style="font-size:1.5rem;font-weight:800">streamlit</div>'
-         f'<div style="opacity:.75;font-size:.95rem;margin-bottom:1rem">доклад в действии</div>')
-    html('<div class="panel-label"><span>Содержание</span></div>')
-    sections = list(dict.fromkeys(s[0] for s in SLIDES))
-    for n, sec in enumerate(sections, 1):
-        first = next(i for i, s in enumerate(SLIDES) if s[0] == sec)
-        st.button(f"{n:02d}  {sec}", key=f"sec{n}", on_click=go, args=(first,), width="stretch",
-                  type="primary" if SLIDES[idx][0] == sec else "tertiary")
-    st.divider()
-    html('<div class="panel-label"><span>Тема</span></div><div class="theme-links">'
-         f'<a href="{app_url(f"embed_options=light_theme&slide={idx + 1}")}" target="_top">Светлая</a>'
-         f'<a href="{app_url(f"embed_options=dark_theme&slide={idx + 1}")}" target="_top">Тёмная</a></div>')
+    section, name, fn, minutes, note = SLIDES[idx]
+    html(f'<div class="topbar"><span>Web-приложения на базе Streamlit</span>'
+         f'<span><span class="live">● live</span> / python &nbsp; {idx + 1:02d} / {len(SLIDES):02d}</span></div>')
+    st.progress((idx + 1) / len(SLIDES))
+
+    if fn is quiz_stage:
+        quiz_stage(store, room, host)
+    else:
+        fn()
+
+    if st.session_state.get("show_notes"):
+        with st.expander("Заметка докладчика", expanded=True):
+            st.write(note)
+
     st.write("")
-    st.toggle("Показывать код", value=True, key="show_code")
-    st.toggle("Заметки докладчика", value=False, key="show_notes")
+    b1, b2, b3 = st.columns([1, 2, 1])
+    b1.button("← Назад", on_click=go, args=(idx - 1,), disabled=idx == 0, width="stretch")
+    b2.markdown(f"<div style='text-align:center;opacity:.6;padding-top:.5rem'>{idx + 1:02d} / {len(SLIDES):02d} · "
+                f"{section}</div>", unsafe_allow_html=True)
+    b3.button("Далее →", on_click=go, args=(idx + 1,), disabled=idx == len(SLIDES) - 1,
+              type="primary", width="stretch")
 
-section, name, fn, minutes, note = SLIDES[idx]
-html(f'<div class="topbar"><span>Web-приложения на базе Streamlit</span>'
-     f'<span><span class="live">● live</span> / python &nbsp; {idx + 1:02d} / {len(SLIDES):02d}</span></div>')
-st.progress((idx + 1) / len(SLIDES))
 
-fn()
-
-if st.session_state.get("show_notes"):
-    with st.expander("Заметка докладчика", expanded=True):
-        st.write(note)
-
-st.write("")
-b1, b2, b3 = st.columns([1, 2, 1])
-b1.button("← Назад", on_click=go, args=(idx - 1,), disabled=idx == 0, width="stretch")
-b2.markdown(f"<div style='text-align:center;opacity:.6;padding-top:.5rem'>{idx + 1:02d} / {len(SLIDES):02d} · "
-            f"{section}</div>", unsafe_allow_html=True)
-b3.button("Далее →", on_click=go, args=(idx + 1,), disabled=idx == len(SLIDES) - 1,
-          type="primary", width="stretch")
+if __name__ == "__main__":
+    main()
